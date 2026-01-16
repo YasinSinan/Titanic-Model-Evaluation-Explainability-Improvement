@@ -1,0 +1,150 @@
+# Part 1 — Model Evaluation
+# 1️⃣ Libraries
+# ============================================
+import pandas as pd
+import numpy as np
+
+from sklearn.model_selection import train_test_split, KFold, cross_validate
+from sklearn.linear_model import LogisticRegression
+
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    roc_auc_score
+)
+
+
+# ============================================
+# 2️⃣ Load Dataset (Kaggle path)
+# ============================================
+df = pd.read_csv("/kaggle/input/titanic-dataset/Titanic-Dataset.csv")
+
+df = df[["Survived", "Pclass", "Sex", "Age", "Fare"]]
+
+df["Age"] = df["Age"].fillna(df["Age"].mean())
+df["Sex"] = df["Sex"].map({"male": 0, "female": 1})
+
+X = df.drop("Survived", axis=1)
+y = df["Survived"]
+
+
+# ============================================
+# 3️⃣ Train–Test Split
+# ============================================
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.2,
+    random_state=42,
+    stratify=y
+)
+
+
+# ============================================
+# 4️⃣ Model
+# ============================================
+model = LogisticRegression(max_iter=1000)
+
+
+# ============================================
+# 5️⃣ Train Model
+# ============================================
+model.fit(X_train, y_train)
+
+
+# ============================================
+# 6️⃣ Train vs Test Performance (Overfitting)
+# ============================================
+train_pred = model.predict(X_train)
+test_pred = model.predict(X_test)
+
+train_prob = model.predict_proba(X_train)[:, 1]
+test_prob = model.predict_proba(X_test)[:, 1]
+
+train_accuracy = accuracy_score(y_train, train_pred)
+test_accuracy = accuracy_score(y_test, test_pred)
+
+train_f1 = f1_score(y_train, train_pred)
+test_f1 = f1_score(y_test, test_pred)
+
+train_auc = roc_auc_score(y_train, train_prob)
+test_auc = roc_auc_score(y_test, test_prob)
+
+
+# ============================================
+# 7️⃣ K-Fold Cross Validation (5-Fold)
+# ============================================
+kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+
+scoring = {
+    "accuracy": "accuracy",
+    "f1": "f1",
+    "roc_auc": "roc_auc"
+}
+
+cv_results = cross_validate(
+    model,
+    X,
+    y,
+    cv=kfold,
+    scoring=scoring,
+    return_train_score=True
+)
+
+
+# ============================================
+# 8️⃣ CV Performance Summary
+# ============================================
+cv_summary = {
+    "Metric": ["Accuracy", "F1 Score", "ROC-AUC"],
+    "CV Mean": [
+        cv_results["test_accuracy"].mean(),
+        cv_results["test_f1"].mean(),
+        cv_results["test_roc_auc"].mean()
+    ],
+    "CV Std": [
+        cv_results["test_accuracy"].std(),
+        cv_results["test_f1"].std(),
+        cv_results["test_roc_auc"].std()
+    ]
+}
+
+cv_df = pd.DataFrame(cv_summary)
+
+
+# ============================================
+# 9️⃣ Final Metric Comparison Table
+# ============================================
+comparison_df = pd.DataFrame({
+    "Metric": ["Accuracy", "F1 Score", "ROC-AUC"],
+    "Train": [train_accuracy, train_f1, train_auc],
+    "Test": [test_accuracy, test_f1, test_auc],
+    "CV Mean": [
+        cv_results["test_accuracy"].mean(),
+        cv_results["test_f1"].mean(),
+        cv_results["test_roc_auc"].mean()
+    ]
+})
+
+
+# ============================================
+# 🔟 Print Results
+# ============================================
+print("===== Train vs Test Performance =====")
+print(comparison_df)
+
+print("\n===== Cross-Validation Performance =====")
+print(cv_df)
+
+print("\n===== Bias–Variance Analysis =====")
+
+if train_accuracy - test_accuracy < 0.05:
+    print("✔ Low variance (no overfitting)")
+else:
+    print("❌ High variance (overfitting detected)")
+
+if test_accuracy < 0.75:
+    print("⚠ Possible high bias (model may be too simple)")
+else:
+    print("✔ Bias acceptable")
+
+
