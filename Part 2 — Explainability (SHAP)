@@ -1,0 +1,74 @@
+#1️⃣ libraries
+import pandas as pd
+import numpy as np
+
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+
+import shap
+import matplotlib.pyplot as plt
+
+
+#2️⃣ Dataset & preprocessing 
+df = pd.read_csv("/kaggle/input/titanic-dataset/Titanic-Dataset.csv")
+
+df = df[["Survived", "Pclass", "Sex", "Age", "Fare"]]
+
+df["Age"] = df["Age"].fillna(df["Age"].mean())
+df["Sex"] = df["Sex"].map({"male": 0, "female": 1})
+
+X = df.drop("Survived", axis=1)
+y = df["Survived"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+
+#3️⃣ Random Forest model
+rf_model = RandomForestClassifier(
+    n_estimators=200,
+    random_state=42
+)
+
+rf_model.fit(X_train, y_train)
+
+
+
+#4️⃣ SHAP Explainer 
+explainer = shap.TreeExplainer(rf_model)
+shap_values = explainer(X_test)
+
+#SHAP SUMMARY PLOT (Global Explainability)
+shap.summary_plot(
+    shap_values.values,
+    X_test,
+    plot_type="dot"
+)
+
+
+#SINGLE PREDICTION EXPLANATION
+
+
+index = 0
+
+shap.plots.waterfall(
+    shap_values[index, :, 1]
+)
+
+
+
+
+
+shap.plots.waterfall(
+    shap_values[index, :, 0]
+)
+
+
+
+
+#GLOBAL PLOT
+shap.summary_plot(
+    shap_values[:, :, 1].values,
+    X_test
+)
