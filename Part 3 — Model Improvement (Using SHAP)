@@ -1,0 +1,134 @@
+#Most Important Features
+Based on the SHAP summary plot, the most influential features in the model are Sex, Pclass, Fare, and Age. After feature engineering, newly added variables such as FamilySize, IsAlone, and Title also appear among the top contributors.
+
+This indicates that demographic factors and socio-economic status play a critical role in survival prediction, which is consistent with historical knowledge about the Titanic disaster.
+
+
+import pandas as pd
+import numpy as np
+
+df = pd.read_csv("/kaggle/input/titanic-dataset/Titanic-Dataset.csv")
+
+# Family features
+df["FamilySize"] = df["SibSp"] + df["Parch"] + 1
+df["IsAlone"] = (df["FamilySize"] == 1).astype(int)
+
+# Title extraction
+df["Title"] = df["Name"].str.extract(r" ([A-Za-z]+)\.", expand=False)
+
+df["Title"] = df["Title"].replace(
+    ["Lady", "Countess","Capt", "Col", "Don", "Dr", "Major", "Rev", "Sir", "Jonkheer", "Dona"],
+    "Rare"
+)
+df["Title"] = df["Title"].replace({"Mlle": "Miss", "Ms": "Miss", "Mme": "Mrs"})
+
+# Fare log transform
+df["Fare"] = np.log1p(df["Fare"])
+
+
+#Potential Issues in Preprocessing
+
+Some preprocessing steps may limit the model’s performance:
+
+Age imputation using a global mean can be misleading, since age is not normally distributed and its effect differs by passenger class and gender.
+
+Fare contains outliers and skewness, which can negatively affect model stability if no transformation is applied.
+
+Encoding categorical variables without considering interactions (e.g., Sex and Age together) may oversimplify the data.
+
+
+# Age: median by Sex & Pclass
+df["Age"] = df.groupby(["Sex", "Pclass"])["Age"].transform(
+    lambda x: x.fillna(x.median())
+)
+
+# Categorical encoding
+df = pd.get_dummies(df, columns=["Sex", "Embarked", "Title"], drop_first=True)
+
+# Features & target
+X = df.drop(["Survived", "Name", "Ticket", "Cabin"], axis=1, errors="ignore")
+y = df["Survived"]
+
+
+# Features & target
+X = df.drop(["Survived", "Name", "Ticket", "Cabin"], axis=1, errors="ignore")
+y = df["Survived"]
+
+
+#IMPROVED MODEL (Random Forest – Regularized)
+
+Based on SHAP analysis, the model can be improved in several ways:
+
+Feature Engineering
+
+Create new features such as FamilySize, IsAlone, and Title extracted from passenger names.
+
+Normalize or log-transform Fare to reduce the impact of extreme values.
+
+Create age groups (child, adult, senior) instead of using raw age values.
+
+Feature Selection
+
+Remove weak or noisy variables (e.g., Cabin or Ticket) that contribute little according to SHAP values.
+
+Focus on features with consistently high SHAP importance to reduce variance.
+
+Hyperparameter Optimization
+
+Limit tree depth and increase minimum samples per leaf to reduce overfitting.
+
+Increase the number of trees to improve prediction stability.
+
+Model Choice
+
+More advanced models such as Gradient Boosting or XGBoost may better capture non-linear relationships identified by SHAP.
+
+
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.25, random_state=42, stratify=y
+)
+
+rf_improved = RandomForestClassifier(
+    n_estimators=300,
+    max_depth=8,
+    min_samples_leaf=10,
+    random_state=42
+)
+
+rf_improved.fit(X_train, y_train)
+
+
+#PERFORMANCE
+
+
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+
+y_pred = rf_improved.predict(X_test)
+y_prob = rf_improved.predict_proba(X_test)[:, 1]
+
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("F1:", f1_score(y_test, y_pred))
+print("ROC-AUC:", roc_auc_score(y_test, y_prob))
+
+
+#SHAP SUMMARY PLOT (Global)
+
+shap.summary_plot(
+    shap_values[:, :, 1],
+    features=shap_values.data,
+    feature_names=shap_values.feature_names
+)
+
+
+#SHAP WATERFALL (Local Explanation)
+
+index = 0
+
+shap.plots.waterfall(
+    shap_values[index, :, 1]
+)
+
+
